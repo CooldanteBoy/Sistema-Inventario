@@ -130,7 +130,7 @@ class MainWindow(tk.Tk):
         self.user = user
 
         self.title(f"Sistema de Inventario - {user.username} ({user.role})")
-        self.configure(bg="#015294")  # Fondo azul
+        self.configure(bg="#015294")
         center_window(self, 900, 550)
 
         self.current_view = None
@@ -160,6 +160,12 @@ class MainWindow(tk.Tk):
         btn_frame = tk.Frame(card, bg="white")
         btn_frame.pack(side="bottom", pady=20)
 
+        nav_frame = tk.Frame(btn_frame, bg="white")
+        nav_frame.pack(side="left")
+
+        logout_frame = tk.Frame(btn_frame, bg="white")
+        logout_frame.pack(side="right")
+
         btn_style = {
             "font": ("Arial", 11, "bold"),
             "bg": "#f8bb00",
@@ -175,8 +181,14 @@ class MainWindow(tk.Tk):
         tk.Button(btn_frame, text="Inicio", command=self.show_home, **btn_style).pack(side="left", padx=8)
         tk.Button(btn_frame, text="Productos", command=self.show_products, **btn_style).pack(side="left", padx=8)
         tk.Button(btn_frame, text="Almacenes", command=self.show_warehouses, **btn_style).pack(side="left", padx=8)
+        tk.Button(logout_frame,text="Cerrar sesión",command=self.logout,**btn_style).pack(side="right", padx=8)
 
         self.show_home()
+
+    def logout(self):
+        self.destroy()
+        login = LoginWindow(self.db)
+        login.mainloop()
 
     def _switch_view(self, frame: tk.Frame):
         if self.current_view is not None:
@@ -322,14 +334,42 @@ class ProductsView(ttk.Frame):
         id_filter = filtros.get("id", "").strip()
         name_filter = filtros.get("name", "").lower()
         desc_filter = filtros.get("desc", "").lower()
-        price_filter = filtros.get("price", "").strip()
+        price_min_filter = filtros.get("price_min", "").strip()
+        price_max_filter = filtros.get("price_max", "").strip()
+        stock_min_filter = filtros.get("stock_min", "").strip()
+        stock_max_filter = filtros.get("stock_max", "").strip()
 
-        price_value = None
-        if price_filter:
+        price_min_value = None
+        price_max_value = None
+        stock_min_value = None
+        stock_max_value = None
+
+        if price_min_filter:
             try:
-                price_value = float(price_filter)
+                price_min_value = float(price_min_filter)
             except ValueError:
-                messagebox.showerror("Error", "El precio en el filtro debe ser numérico.")
+                messagebox.showerror("Error", "El precio mínimo debe ser numérico.")
+                return
+
+        if price_max_filter:
+            try:
+                price_max_value = float(price_max_filter)
+            except ValueError:
+                messagebox.showerror("Error", "El precio máximo debe ser numérico.")
+                return
+
+        if stock_min_filter:
+            try:
+                stock_min_value = int(stock_min_filter)
+            except ValueError:
+                messagebox.showerror("Error", "Las existencias mínimas deben ser numéricas.")
+                return
+
+        if stock_max_filter:
+            try:
+                stock_max_value = int(stock_max_filter)
+            except ValueError:
+                messagebox.showerror("Error", "Las existencias máximas deben ser numéricas.")
                 return
 
         for row in self.tree.get_children():
@@ -342,7 +382,13 @@ class ProductsView(ttk.Frame):
                 continue
             if desc_filter and desc_filter not in p.description.lower():
                 continue
-            if price_value is not None and p.price != price_value:
+            if price_min_value is not None and p.price < price_min_value:
+                continue
+            if price_max_value is not None and p.price > price_max_value:
+                continue
+            if stock_min_value is not None and p.stock < stock_min_value:
+                continue
+            if stock_max_value is not None and p.stock > stock_max_value:
                 continue
 
             self.tree.insert(
@@ -629,7 +675,7 @@ class ProductSearchDialog(tk.Toplevel):
     def __init__(self, parent):
         super().__init__(parent)
         self.title("Buscar producto")
-        self.geometry("320x230")
+        self.geometry("320x290")
         self.resizable(False, False)
         self.result = None
 
@@ -639,25 +685,35 @@ class ProductSearchDialog(tk.Toplevel):
         ttk.Label(frm, text="Id:").grid(row=0, column=0, sticky="e", pady=5)
         ttk.Label(frm, text="Nombre:").grid(row=1, column=0, sticky="e", pady=5)
         ttk.Label(frm, text="Descripción:").grid(row=2, column=0, sticky="e", pady=5)
-        ttk.Label(frm, text="Precio:").grid(row=3, column=0, sticky="e", pady=5)
+
+        ttk.Label(frm, text="Precio Mínimo:").grid(row=5, column=0, sticky="e", pady=5)
+        ttk.Label(frm, text="Precio Máximo:").grid(row=6, column=0, sticky="e", pady=5)
+        ttk.Label(frm, text="Existencias Mínimas:").grid(row=7, column=0, sticky="e", pady=5)
+        ttk.Label(frm, text="Existencias Máximas:").grid(row=8, column=0, sticky="e", pady=5)
 
         self.var_id = tk.StringVar()
         self.var_name = tk.StringVar()
         self.var_desc = tk.StringVar()
-        self.var_price = tk.StringVar()
+        self.var_price_min = tk.StringVar()
+        self.var_price_max = tk.StringVar()
+        self.var_stock_min = tk.StringVar()
+        self.var_stock_max = tk.StringVar()
 
         ttk.Entry(frm, textvariable=self.var_id).grid(row=0, column=1, sticky="we", pady=5)
         ttk.Entry(frm, textvariable=self.var_name).grid(row=1, column=1, sticky="we", pady=5)
         ttk.Entry(frm, textvariable=self.var_desc).grid(row=2, column=1, sticky="we", pady=5)
-        ttk.Entry(frm, textvariable=self.var_price).grid(row=3, column=1, sticky="we", pady=5)
+        ttk.Entry(frm, textvariable=self.var_price_min).grid(row=5, column=1, sticky="we", pady=5)
+        ttk.Entry(frm, textvariable=self.var_price_max).grid(row=6, column=1, sticky="we", pady=5)
+        ttk.Entry(frm, textvariable=self.var_stock_min).grid(row=7, column=1, sticky="we", pady=5)
+        ttk.Entry(frm, textvariable=self.var_stock_max).grid(row=8, column=1, sticky="we", pady=5)
 
         frm.columnconfigure(1, weight=1)
 
         btns = ttk.Frame(frm)
-        btns.grid(row=4, column=0, columnspan=2, pady=10)
+        btns.grid(row=10, column=0, columnspan=2, pady=18)
 
-        ttk.Button(btns, text="Aplicar filtro", command=self._on_ok).pack(side="left", padx=5)
-        ttk.Button(btns, text="Cancelar", command=self.destroy).pack(side="left", padx=5)
+        ttk.Button(btns, text="Aplicar filtro", command=self._on_ok).pack(side="left", padx=8)
+        ttk.Button(btns, text="Cancelar", command=self.destroy).pack(side="left", padx=8)
 
         self.transient(parent)
         self.grab_set()
@@ -680,7 +736,10 @@ class ProductSearchDialog(tk.Toplevel):
             "id": self.var_id.get().strip(),
             "name": self.var_name.get().strip(),
             "desc": self.var_desc.get().strip(),
-            "price": self.var_price.get().strip(),
+            "price_min": self.var_price_min.get().strip(),
+            "price_max": self.var_price_max.get().strip(),
+            "stock_min": self.var_stock_min.get().strip(),
+            "stock_max": self.var_stock_max.get().strip(),
         }
         self.destroy()
 
