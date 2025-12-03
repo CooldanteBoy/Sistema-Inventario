@@ -152,7 +152,15 @@ class Database:
 
     def list_products(self) -> list[Product]:
         c = self.conn.cursor()
-        c.execute("SELECT * FROM productos ORDER BY id")
+        c.execute(
+            """
+            SELECT p.*,
+                   a.nombre AS almacen_nombre
+            FROM productos p
+            LEFT JOIN almacenes a ON p.almacen = a.id
+            ORDER BY p.id
+            """
+        )
         rows = c.fetchall()
 
         products: List[Product] = []
@@ -160,6 +168,10 @@ class Database:
             last_modified = None
             if "fecha_hora_ultima_modificacion" in r.keys():
                 last_modified = r["fecha_hora_ultima_modificacion"]
+
+            warehouse_name = None
+            if "almacen_nombre" in r.keys():
+                warehouse_name = r["almacen_nombre"]
 
             products.append(
                 Product(
@@ -169,16 +181,17 @@ class Database:
                     price=r["precio"],
                     stock=r["cantidad"],
                     last_modified=last_modified,
+                    warehouse_name=warehouse_name,   # 👈 aquí mandamos el nombre
                 )
             )
         return products
-
     def add_product(
             self,
             name: str,
             description: str,
             price: float,
             stock: int,
+            warehouse_id: int,
             username: str,
     ) -> None:
         c = self.conn.cursor()
@@ -191,7 +204,7 @@ class Database:
              fecha_hora_creacion, fecha_hora_ultima_modificacion, ultimo_usuario_en_modificar)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (name, price, stock, description, 1, now, now, username),
+            (name, price, stock, description, warehouse_id, now, now, username),
         )
         self.conn.commit()
 
@@ -202,6 +215,7 @@ class Database:
             description: str,
             price: float,
             stock: int,
+            warehouse_id: int,
             username: str,
     ) -> None:
         c = self.conn.cursor()
@@ -214,11 +228,12 @@ class Database:
                 precio = ?,
                 cantidad = ?,
                 departamento = ?,
+                almacen = ?,
                 fecha_hora_ultima_modificacion = ?,
                 ultimo_usuario_en_modificar = ?
             WHERE id = ?
             """,
-            (name, price, stock, description, now, username, product_id),
+            (name, price, stock, description, warehouse_id, now, username, product_id),
         )
         self.conn.commit()
 

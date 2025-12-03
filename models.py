@@ -18,6 +18,7 @@ class Product:
     price: float
     stock: int
     last_modified: Optional[str]
+    warehouse_name: Optional[str] = None
 
 
 @dataclass

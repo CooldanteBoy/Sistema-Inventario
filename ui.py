@@ -295,11 +295,15 @@ class ProductsView(ttk.Frame):
         self.btn_clear.pack(side="left", padx=3)
 
         # Tabla
-        columns = ("id", "nombre", "descripcion", "precio", "existencias")
+        columns = ("id", "nombre", "descripcion", "precio", "existencias", "almacen")
         self.tree = ttk.Treeview(self, columns=columns, show="headings", height=14)
         for col in columns:
-            self.tree.heading(col, text=col.capitalize())
-            self.tree.column(col, width=150, anchor="center")
+            heading = col.capitalize()
+            if col == "almacen":
+                heading = "Almacén"
+            self.tree.heading(col, text=heading)
+            self.tree.column(col, width=140, anchor="center")
+
 
         self.tree.pack(fill="both", expand=True, padx=5, pady=5)
 
@@ -338,6 +342,7 @@ class ProductsView(ttk.Frame):
         price_max_filter = filtros.get("price_max", "").strip()
         stock_min_filter = filtros.get("stock_min", "").strip()
         stock_max_filter = filtros.get("stock_max", "").strip()
+        warehouse_filter = filtros.get("warehouse", "").lower()
 
         price_min_value = None
         price_max_value = None
@@ -390,11 +395,20 @@ class ProductsView(ttk.Frame):
                 continue
             if stock_max_value is not None and p.stock > stock_max_value:
                 continue
+            if warehouse_filter and warehouse_filter not in (p.warehouse_name or "").lower():
+                continue
 
             self.tree.insert(
                 "",
                 "end",
-                values=(p.id, p.name, p.description, f"{p.price:.2f}", p.stock),
+                values=(
+                    p.id,
+                    p.name,
+                    p.description,
+                    f"{p.price:.2f}",
+                    p.stock,
+                    p.warehouse_name or "",
+                ),
             )
 
         self.lbl_creacion.config(text="Creado: -")
@@ -439,17 +453,17 @@ class ProductsView(ttk.Frame):
     # --------- CRUD ---------
 
     def add_product(self):
-        dialog = ProductDialog(self, "Agregar producto")
+        dialog = ProductDialog(self, self.db, "Agregar producto")
         self.wait_window(dialog)
         if dialog.result:
-            name, desc, price, stock = dialog.result
+            name, desc, price, stock, warehouse_id = dialog.result
             try:
                 price = float(price)
                 stock = int(stock)
             except ValueError:
                 messagebox.showerror("Error", "Precio o existencias inválidas.")
                 return
-            self.db.add_product(name, desc, price, stock, self.user.username)
+            self.db.add_product(name, desc, price, stock, warehouse_id, self.user.username)
             self.refresh_table()
 
     def edit_product(self):
@@ -469,22 +483,24 @@ class ProductsView(ttk.Frame):
 
         dialog = ProductDialog(
             self,
+            self.db,
             "Modificar producto",
             initial_name=product.name,
             initial_desc=product.description,
             initial_price=str(product.price),
             initial_stock=str(product.stock),
+            initial_warehouse_name=product.warehouse_name or "",
         )
         self.wait_window(dialog)
         if dialog.result:
-            name, desc, price, stock = dialog.result
+            name, desc, price, stock, warehouse_id = dialog.result
             try:
                 price = float(price)
                 stock = int(stock)
             except ValueError:
                 messagebox.showerror("Error", "Precio o existencias inválidas.")
                 return
-            self.db.update_product(product_id, name, desc, price, stock, self.user.username)
+            self.db.update_product(product_id, name, desc, price, stock, warehouse_id, self.user.username)
             self.refresh_table()
 
     def delete_product(self):
@@ -675,7 +691,7 @@ class ProductSearchDialog(tk.Toplevel):
     def __init__(self, parent):
         super().__init__(parent)
         self.title("Buscar producto")
-        self.geometry("320x290")
+        self.geometry("420x350")
         self.resizable(False, False)
         self.result = None
 
@@ -685,6 +701,7 @@ class ProductSearchDialog(tk.Toplevel):
         ttk.Label(frm, text="Id:").grid(row=0, column=0, sticky="e", pady=5)
         ttk.Label(frm, text="Nombre:").grid(row=1, column=0, sticky="e", pady=5)
         ttk.Label(frm, text="Descripción:").grid(row=2, column=0, sticky="e", pady=5)
+        ttk.Label(frm, text="Almacén:").grid(row=3, column=0, sticky="e", pady=4)
 
         ttk.Label(frm, text="Precio Mínimo:").grid(row=5, column=0, sticky="e", pady=5)
         ttk.Label(frm, text="Precio Máximo:").grid(row=6, column=0, sticky="e", pady=5)
@@ -694,6 +711,7 @@ class ProductSearchDialog(tk.Toplevel):
         self.var_id = tk.StringVar()
         self.var_name = tk.StringVar()
         self.var_desc = tk.StringVar()
+        self.var_warehouse = tk.StringVar()
         self.var_price_min = tk.StringVar()
         self.var_price_max = tk.StringVar()
         self.var_stock_min = tk.StringVar()
@@ -702,6 +720,7 @@ class ProductSearchDialog(tk.Toplevel):
         ttk.Entry(frm, textvariable=self.var_id).grid(row=0, column=1, sticky="we", pady=5)
         ttk.Entry(frm, textvariable=self.var_name).grid(row=1, column=1, sticky="we", pady=5)
         ttk.Entry(frm, textvariable=self.var_desc).grid(row=2, column=1, sticky="we", pady=5)
+        ttk.Entry(frm, textvariable=self.var_warehouse).grid(row=3, column=1, sticky="we", pady=4)
         ttk.Entry(frm, textvariable=self.var_price_min).grid(row=5, column=1, sticky="we", pady=5)
         ttk.Entry(frm, textvariable=self.var_price_max).grid(row=6, column=1, sticky="we", pady=5)
         ttk.Entry(frm, textvariable=self.var_stock_min).grid(row=7, column=1, sticky="we", pady=5)
@@ -736,6 +755,7 @@ class ProductSearchDialog(tk.Toplevel):
             "id": self.var_id.get().strip(),
             "name": self.var_name.get().strip(),
             "desc": self.var_desc.get().strip(),
+            "warehouse": self.var_warehouse.get().strip(),
             "price_min": self.var_price_min.get().strip(),
             "price_max": self.var_price_max.get().strip(),
             "stock_min": self.var_stock_min.get().strip(),
@@ -798,18 +818,24 @@ class ProductDialog(tk.Toplevel):
     def __init__(
             self,
             parent,
+            db: Database,
             title: str,
             initial_name: str = "",
             initial_desc: str = "",
             initial_price: str = "",
             initial_stock: str = "",
+            initial_warehouse_name: str = "",
     ):
         super().__init__(parent)
         self.result = None
+        self.db = db
         self.title(title)
-        self.geometry("400x240")
+        self.geometry("400x260")
         self.resizable(False, False)
         self._center_window()
+
+        self.warehouses = self.db.list_warehouses()
+        self.warehouse_name_to_id = {w.name: w.id for w in self.warehouses}
 
         frm = ttk.Frame(self, padding=10)
         frm.pack(fill="both", expand=True)
@@ -818,21 +844,32 @@ class ProductDialog(tk.Toplevel):
         ttk.Label(frm, text="Departamento:").grid(row=1, column=0, sticky="e", pady=5)
         ttk.Label(frm, text="Precio:").grid(row=2, column=0, sticky="e", pady=5)
         ttk.Label(frm, text="Cantidad:").grid(row=3, column=0, sticky="e", pady=5)
+        ttk.Label(frm, text="Almacén:").grid(row=4, column=0, sticky="e", pady=5)
 
         self.var_name = tk.StringVar(value=initial_name)
         self.var_desc = tk.StringVar(value=initial_desc)
         self.var_price = tk.StringVar(value=initial_price)
         self.var_stock = tk.StringVar(value=initial_stock)
+        self.var_warehouse_name = tk.StringVar(value=initial_warehouse_name)
 
         ttk.Entry(frm, textvariable=self.var_name).grid(row=0, column=1, sticky="we", pady=5)
         ttk.Entry(frm, textvariable=self.var_desc).grid(row=1, column=1, sticky="we", pady=5)
         ttk.Entry(frm, textvariable=self.var_price).grid(row=2, column=1, sticky="we", pady=5)
         ttk.Entry(frm, textvariable=self.var_stock).grid(row=3, column=1, sticky="we", pady=5)
 
+        warehouse_names = [w.name for w in self.warehouses]
+        self.combo_warehouse = ttk.Combobox(
+        frm,
+        textvariable=self.var_warehouse_name,
+        values=warehouse_names,
+        state="readonly"
+        )
+        self.combo_warehouse.grid(row=4, column=1, sticky="we", pady=5)
+
         frm.columnconfigure(1, weight=1)
 
         btns = ttk.Frame(frm)
-        btns.grid(row=4, column=0, columnspan=2, pady=10)
+        btns.grid(row=5, column=0, columnspan=2, pady=10)
 
         ttk.Button(btns, text="Aceptar", command=self._on_ok).pack(side="left", padx=5)
         ttk.Button(btns, text="Cancelar", command=self.destroy).pack(side="left", padx=5)
@@ -846,12 +883,26 @@ class ProductDialog(tk.Toplevel):
         desc = self.var_desc.get().strip()
         price = self.var_price.get().strip()
         stock = self.var_stock.get().strip()
+        warehouse_name = self.var_warehouse_name.get().strip()
 
-        if not name or not price or not stock:
-            messagebox.showwarning("Advertencia", "Nombre, precio y cantidad son obligatorios.")
+        if not name or not price or not stock or not warehouse_name:
+            messagebox.showwarning("Advertencia", "Nombre, precio, cantidad y almacen son obligatorios.")
             return
 
-        self.result = (name, desc, price, stock)
+        try:
+            float(price)
+            int(stock)
+        except ValueError:
+            messagebox.showerror("Error", "Precio y cantidad deben ser números.")
+            return
+
+        if warehouse_name not in self.warehouse_name_to_id:
+            messagebox.showerror("Error", "Almacén inválido.")
+            return
+
+        warehouse_id = self.warehouse_name_to_id[warehouse_name]
+
+        self.result = (name, desc, price, stock, warehouse_id)
         self.destroy()
 
     def _center_window(self):
