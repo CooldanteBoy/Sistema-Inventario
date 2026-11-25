@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-
+from pathlib import Path
 from database import Database
 from models import User
 from PIL import Image, ImageTk
@@ -51,7 +51,7 @@ class LoginWindow(tk.Tk):
 
         # ---------- LOGO ARRIBA ----------
         try:
-            img = Image.open("logo.png")
+            img = Image.open(Path(__file__).resolve().parent / "logo.png")
             w, h = img.size
             max_w = 850
             if w > max_w:
@@ -215,7 +215,7 @@ class HomeView(tk.Frame):
 
         self.logo_img = None
         try:
-            img = Image.open("logo.png")
+            img = Image.open(Path(__file__).resolve().parent / "logo.png")
             w, h = img.size
 
             max_width = 600
@@ -235,6 +235,24 @@ class HomeView(tk.Frame):
             canvas.pack(pady=(15, 5))
             canvas.create_oval(10, 10, 170, 170, outline="#015294", width=2, fill="#e6f0fa")
             canvas.create_text(90, 90, text="LOGO", fill="#015294", font=("Arial", 12, "bold"))
+
+        try:
+            img2 = Image.open(
+                Path(__file__).resolve().parent / "AjoloteGalactico.png"
+            )
+
+            img2 = img2.resize((350, 280), Image.Resampling.LANCZOS)
+
+            self.segunda_img = ImageTk.PhotoImage(img2)
+
+            tk.Label(
+                self,
+                image=self.segunda_img,
+                bg="white"
+            ).pack(pady=(5, 10))
+
+        except Exception as e:
+            print("Error al cargar la segunda imagen:", e)
 
         tk.Label(
             self,
